@@ -1,3 +1,15 @@
+"""SNHU Assignment Importer.
+
+Imports assignment information from an SNHU Brightspace Grades page into
+an Excel workbook used to track courses, assignments, and grades.
+
+Author:
+    Tom Archer
+
+License:
+    MIT License
+"""
+
 from copy import copy
 import re
 
@@ -162,6 +174,8 @@ def display_course(course):
 
     Args:
         course: Dictionary containing the course information.
+    Returns:
+        None
     """
 
     # Display the course name, term, and description.
@@ -241,6 +255,9 @@ def preview_assignments(course, assignments):
     Args:
         course: Dictionary containing the course information.
         assignments: List of assignment dictionaries to be imported.
+
+    Returns:
+        int: Count of assignments found.
     """
 
     # Display the number of assignments found on the SNHU Grades page.
@@ -275,6 +292,9 @@ def preview_assignments(course, assignments):
 def confirm_import():
     """Ask the user whether the assignments should be imported.
 
+    Args:
+        None
+
     Returns:
         bool: True if the user confirms the import; otherwise False.
     """
@@ -289,7 +309,15 @@ def confirm_import():
     return answer == "y"
 
 def update_grades_formulas(grades_sheet, totals_row):
-    """Update the formulas for each assignment row in the Grades table."""
+    """Update the formulas for each assignment row in the Grades table.
+    
+    Args:
+        grades_sheet: openpyxl Worksheet object.
+        totals_row: row number containing the totals row.
+
+    Returns:
+        None
+    """
 
     # For every assignment row in the Grades table...
     for row in range(2, totals_row):
@@ -313,7 +341,17 @@ def update_grades_formulas(grades_sheet, totals_row):
         )
 
 def delete_placeholder_row(grades_sheet, grades_table):
-    """If it exists, delete the placeholder row."""
+    """Excel mandates that every table have at least one row.
+    Therefore, the template spreadsheet that this app ships with
+    has a blank row. If it exists, delete it.
+    
+    Args:
+        grades_sheet: openpyxl Worksheet object.
+        grades_table: openpyxl Table object.
+
+    Returns:
+        None
+    """
 
     # If the first row and column do not contain the formula that
     # exists in every imported row, the row must be the placeholder
@@ -374,6 +412,9 @@ def insert_assignments(
         min_row: The first row occupied by the Grades table.
         max_col: The last column occupied by the Grades table.
         max_row: The last row occupied by the Grades table.
+
+    Returns:
+        None
     """
 
     # The last row in the Grades table contains the totals row.
@@ -437,6 +478,8 @@ def insert_assignments(
         max_row + number_of_assignments
     )
 
+    # If the template's original blank row is still present,
+    # delete it.
     delete_placeholder_row(grades_sheet, grades_table)
 
 def copy_row_formatting(
@@ -454,6 +497,9 @@ def copy_row_formatting(
         target_row: Row that will receive the copied formatting.
         min_col: The first column whose formatting should be copied.
         max_col: The last column whose formatting should be copied.
+
+    Returns:
+        None
     """
 
     # For every column in the Grades table...
@@ -494,6 +540,9 @@ def copy_row_formulas(grades_sheet, source_row, target_row):
         grades_sheet: Worksheet containing the Grades table.
         source_row: Row containing the formulas to copy.
         target_row: Row that will receive the translated formulas.
+
+    Returns:
+        None
     """
 
     # For every calculated column in the Grades table...
@@ -533,6 +582,9 @@ def write_assignment_row(
         target_row: Row where the assignment values should be written.
         course: Dictionary containing the course information.
         assignment: Dictionary containing the assignment information.
+
+    Returns:
+        None
     """
 
     # Write the calculated Term formula.
@@ -580,6 +632,9 @@ def update_grades_table(
         min_row: The first row occupied by the Grades table.
         max_col: The last column occupied by the Grades table.
         new_totals_row: The new worksheet row containing the totals row.
+
+    Returns:
+        None
     """
 
     # Expand the Grades table reference through the relocated totals row.
@@ -606,6 +661,9 @@ def import_assignments(workbook, course, assignments):
         workbook: The openpyxl workbook containing the Grades table.
         course: Dictionary containing the course information.
         assignments: List of assignment dictionaries to import.
+
+    Returns:
+        None
     """
 
     # Display information for the course being imported.
@@ -645,6 +703,7 @@ def import_assignments(workbook, course, assignments):
     # Display the assignments that will be imported.
     assignments_count = preview_assignments(course, assignments)
 
+    # If there are assignments to import...
     if assignments_count > 0:
         # If the user does NOT confirm the import...
         if not confirm_import():
@@ -668,18 +727,28 @@ def import_assignments(workbook, course, assignments):
         # Save the updated workbook to the original Excel file.
         workbook.save(excel_workbook_name)
 
+        # Print a confirmation message
         print(
             f"\nAdded {len(assignments)} assignments "
             f"and saved them to {excel_workbook_name}.\n"
         )
-    else:
+    else: # If there are no assignments to import...
+
+        # Let the user know that we didn't find any assignments.
         print(
             f"\nNo assignments to add to spreadsheet.\n"
         )
 
 
 def main():
-    """Run the SNHU grade assignment importer."""
+    """Run the SNHU grade assignment importer.
+    
+    Args:
+        None
+
+    Returns:
+        None
+    """
 
     # Start Playwright and automatically clean up its resources when
     # the application exits the with block.
@@ -737,6 +806,8 @@ def main():
                 import_assignments(workbook, course, assignments)
 
         # Close the persistent browser context before exiting the app.
+        # Catch and release any exceptions - such as the user closing
+        # the browser and Playwrite not being able to find it.
         try:
             context.close()
         except PlaywrightError:
