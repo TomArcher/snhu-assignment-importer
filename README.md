@@ -24,8 +24,8 @@ Before running the application, do the following:
 
 1. Open the application's Excel workbook: `sn​​hu_template.xlsx`.
 1. If Windows displays a Microsoft Defender SmartScreen warning:
-    a. Select **More info**.
-    b. Select **Run anyway**.
+    - Select **More info**.
+    - Select **Run anyway**.
 1. Select the **Data** tab.
 1. Enter each course you want to track in the table. Note: The course name must match the course identifier used by SNHU (ex: `CS-350`).
 1. (Optional) You can also enter the term, university, status, credits, description, instructor, instructor email, and notes.
