@@ -10,8 +10,13 @@ License:
     MIT License
 """
 
+from pathlib import Path
+import sys
+import ctypes
+
 from copy import copy
 import re
+import traceback
 
 from openpyxl import load_workbook
 from openpyxl.formula.translate import Translator
@@ -20,6 +25,10 @@ from openpyxl.utils.cell import range_boundaries
 from openpyxl.worksheet.table import Table
 from playwright.sync_api import sync_playwright
 from playwright.sync_api import Error as PlaywrightError
+
+# App constants
+APP_NAME = "SNHU Assignment Importer"
+APP_VERSION = "1.0.0"
 
 # Constants for SNHU
 SNHU_URL = "https://learn.snhu.edu/"
@@ -35,8 +44,15 @@ Return here.
 
 get_course_name = "Specify the course name (ex: CS-350) or Q to quit: "
 
+# Establish spreadsheet location
+if getattr(sys, "frozen", False):
+    app_dir = Path(sys.executable).parent
+else:
+    app_dir = Path(__file__).resolve().parent
+
+excel_workbook_name = app_dir / "snhu_template.xlsx"
+
 # Constants for the Excel workbook and Data tab names
-excel_workbook_name = "snhu_template.xlsx"
 data_tab_name = "Data"
 
 
@@ -653,7 +669,53 @@ def update_grades_table(
             f"{get_column_letter(max_col)}{new_totals_row - 1}"
         )
 
+def save_workbook(workbook, assignments):
+    """Saves the specified workbook
+    
+    Args:
+        workbook: openpyxl workbook object representing the Excel spreadsheet.
+        assignments: List of assignment dictionaries to save.
+        
+    Returns:
+        None
+    """
 
+    # Infinite loop - we'll break out when the work has been successfully
+    # saved or the user cancels after an error message.
+    while True:
+        try:
+            # Save the workbook
+            workbook.save(excel_workbook_name)
+
+            # Print a confirmation message
+            print(
+                f"\nAdded {len(assignments)} assignments "
+                f"and saved them to {excel_workbook_name}.\n"
+            )
+
+            # Save was sucessful; break out of the loop
+            break
+
+        except PermissionError:
+
+            # Print error message due to file being locked
+            print(
+                "\nThe spreadsheet is currently open in Excel and cannot be saved."
+            )
+
+            # Give the user the option of trying again (so they can close the
+            # spreadsheet) or cancelling the operation.
+            answer = input(
+                "Close the spreadsheet, then press Enter to try again "
+                "or Q to cancel: "
+            ).strip().upper()
+
+            # If user decides to quit, print a confirmation of user cancelling
+            # the operation and return from the function.
+            if answer == "Q":
+                print("\nSave cancelled.")
+                return
+        
 def import_assignments(workbook, course, assignments):
     """Import assignments into the workbook's Grades table.
 
@@ -724,14 +786,9 @@ def import_assignments(workbook, course, assignments):
             max_row
         )
 
-        # Save the updated workbook to the original Excel file.
-        workbook.save(excel_workbook_name)
+        # Save the Excel workbook
+        save_workbook(workbook, assignments)
 
-        # Print a confirmation message
-        print(
-            f"\nAdded {len(assignments)} assignments "
-            f"and saved them to {excel_workbook_name}.\n"
-        )
     else: # If there are no assignments to import...
 
         # Let the user know that we didn't find any assignments.
@@ -739,6 +796,9 @@ def import_assignments(workbook, course, assignments):
             f"\nNo assignments to add to spreadsheet.\n"
         )
 
+def print_app_header():
+    """Print the app name and current version"""
+    print(f"\n{APP_NAME} v{APP_VERSION}\n")
 
 def main():
     """Run the SNHU grade assignment importer.
@@ -750,6 +810,9 @@ def main():
         None
     """
 
+    # Print app information (app name and version)
+    print_app_header()
+
     # Start Playwright and automatically clean up its resources when
     # the application exits the with block.
     with sync_playwright() as p:
@@ -757,12 +820,18 @@ def main():
         # Load the Excel workbook that contains the course and grade data.
         workbook = load_workbook(excel_workbook_name, data_only=False)
 
-        # Launch a persistent Chromium browser context so the SNHU login
-        # session can be reused between application runs.
+        # Get a handle to the application's command-line window so that focus
+        # can be returned to it after the browser has been opened.
+        console_window = ctypes.windll.kernel32.GetConsoleWindow()
+
+        # Launch the Chromium browser.
         context = p.chromium.launch_persistent_context(
             user_data_dir="browser-profile",
             headless=False
         )
+
+        # Return focus to the application's command-line window.
+        ctypes.windll.user32.SetForegroundWindow(console_window)
 
         # Get the browser page opened by the persistent Chromium context.
         page = context.pages[0]
@@ -797,7 +866,7 @@ def main():
 
                 # Display an error and allow the user to try another course.
                 print(
-                    f"\nCourse {course_name} was not found in CourseData."
+                    f"\nCourse {course_name} was not found in CourseData.\n"
                 )
 
             else:  # If the specified course was found...
@@ -815,6 +884,15 @@ def main():
 
 # If this file is being run directly rather than imported as a module...
 if __name__ == "__main__":
+    try:
+        main()
 
-    # Run the application.
-    main()
+    except Exception:
+        # An exception was raised that the code didn't catch. Instead
+        # of simply crashing with no feedback, print a message 
+        # with trace information.
+        print("\nAn unexpected error occurred:\n")
+        traceback.print_exc()
+
+        # This guarantees that the application won't die quietly.
+        input("\nPress Enter to exit...")
